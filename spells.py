@@ -32,7 +32,7 @@ class Spell:
 
 class SpellInterface:
     spell_to_combo = {
-        "coldsnap": Combo("QQQ"),
+        "coldsnap": Combo(git "QQQ"),
         "icewall": Combo("QQE"),
         "forgespirit": Combo("QEE"),
         "sunstrike": Combo("EEE"),
