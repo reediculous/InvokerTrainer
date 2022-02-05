@@ -3,6 +3,7 @@ import queue
 
 
 class Combo:
+    """spell combo defined as dict with keys Q, W, E"""
     def __init__(self, string):
         self.counter = {
             "Q": 0,
@@ -31,6 +32,16 @@ class Spell:
 
 
 class SpellInterface:
+    """ defines functions to work with spell combos
+
+    fields:
+        spell_to_combo
+        spellnames
+
+    method:
+        get_random_spell
+        init_spells_seq - returns initial Queue of spells
+    """
     spell_to_combo = {
         "coldsnap": Combo("QQQ"),
         "icewall": Combo("QQE"),
@@ -51,6 +62,11 @@ class SpellInterface:
         return Spell(self.spell_to_combo[r], r, r + ".png")
 
     def init_spells_seq(self, N):
+        """returns initial Queue of spells
+
+        params
+        :N: number of spells in initial queue
+        """
         seq = queue.Queue()
         for i in range(N):
             rs = self.get_random_spell()
