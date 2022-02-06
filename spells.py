@@ -83,5 +83,8 @@ class SpellQueue:
     def add_spell(self):
         self.queue.put(self.si.get_random_spell())
 
+    def get_first_spell(self):
+        return list(self.queue.queue)[0]
+
     def remove_spell(self):
         return self.queue.get()
