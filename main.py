@@ -41,6 +41,9 @@ class Game:
         "BG": (255, 255, 255),
         "TEXT": (0, 0, 0)
     }
+    SPELL_IMAGES = {}
+    for s in spells.SpellInterface.spellnames:
+        SPELL_IMAGES[s] = pygame.image.load(ICONS_DIR + f"/{s}.png")
     FPS = 60
     POINTS = 0
     DISPLAY = pygame.display.set_mode(SIZE)
@@ -61,6 +64,7 @@ class Game:
     def invoke(self):
         if self.layout == self.spellqueue.get_first_spell().combo:
             self.spellqueue.remove_spell()
+            self.spellqueue.add_spell()
             return True
         return False
 
@@ -89,7 +93,9 @@ class Game:
     def draw(self):
         texts = self.render_text()
         self.DISPLAY.fill(self.COLORS["BG"])
-        self.DISPLAY.blit(texts["CURRENT_SPELL"], (100, 100))
+        self.DISPLAY.blit(
+            self.SPELL_IMAGES[self.spellqueue.get_first_spell().name], (100, 100)
+        )
         pygame.display.flip()
 
     def main_loop(self):
@@ -99,6 +105,7 @@ class Game:
                 self.process_event(e)
             self.draw()
             self.CLOCK.tick(self.FPS)
+            #print(self.layout)
 
 
 game = Game()
