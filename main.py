@@ -33,6 +33,54 @@ class SphereLayout:
     def __eq__(self, combo):
         return self.counter == combo.counter
 
+    def draw(self, game):
+        sw = game.SPHERE_IMAGES["Q"].get_rect().width
+        b = game.between_spheres_distance
+        offset = (game.SIZE[0] - sw * 3 - b * 2) // 2
+        for sphere in self.layout:
+            game.DISPLAY.blit(
+                game.SPHERE_IMAGES[sphere], (offset, 300)
+            )
+            offset += b + sw
+
+
+class HPbar:
+    HP = 100
+    _status = "FULL"  # may be FULL, OKAY, LOW, CRITICAL
+    _COLORS = {
+        "FULL": (11, 218, 81),
+        "OKAY": (204, 255, 0),
+        "LOW": (255, 153, 0),
+        "CRITICAL": (255, 0, 43),
+        "BG": (50, 50, 50)
+    }
+    MAX_WIDTH = 450
+    border = 4
+    width = MAX_WIDTH - border * 2
+    height = 40
+
+    def is_dead(self):
+        return self.HP <= 0
+
+    def update_status(self):
+        if self.HP > 90:
+            self._status = "FULL"
+        elif self.HP > 40:
+            self._status = "OKAY"
+        elif self.HP > 15:
+            self._status = "LOW"
+        else:
+            self._status = "CRITICAL"
+
+    def calc_width(self):
+        return (self.HP * self.MAX_WIDTH) // 100
+
+    def draw(self, game):
+        y = game.hp_bar_y_offset
+        x = game.SIZE[0] // 2 - self.MAX_WIDTH // 2
+        pygame.draw.rect(game.DISPLAY, self._COLORS[self._status],
+                         (x, y, self.calc_width(), self.height))
+
 
 class Game:
     ICONS_DIR = "static/images/spell_icons"
@@ -44,6 +92,11 @@ class Game:
     SPELL_IMAGES = {}
     for s in spells.SpellInterface.spellnames:
         SPELL_IMAGES[s] = pygame.image.load(ICONS_DIR + f"/{s}.png")
+    SPHERE_IMAGES = {
+        "Q": pygame.image.load(ICONS_DIR + "/spheres/Q.png"),
+        "W": pygame.image.load(ICONS_DIR + "/spheres/W.png"),
+        "E":  pygame.image.load(ICONS_DIR + "/spheres/E.png")
+    }
     FPS = 60
     POINTS = 0
     DISPLAY = pygame.display.set_mode(SIZE)
@@ -51,13 +104,18 @@ class Game:
     FONT = pygame.font.SysFont("Arial", 36)
     layout = SphereLayout()
     spellqueue = spells.SpellQueue()
+    hpbar = HPbar()
 
     KEYSET = {
-        "quas": pygame.K_q,
-        "wex": pygame.K_w,
-        "exort": pygame.K_e,
-        "invoke": pygame.K_r
+        "quas": pygame.K_1,
+        "wex": pygame.K_2,
+        "exort": pygame.K_3,
+        "invoke": pygame.K_4
     }
+
+    between_spheres_distance = 25
+    spell_y_offset = 100
+    hp_bar_y_offset = 20
 
     running = True
 
@@ -81,6 +139,7 @@ class Game:
             if event.key == self.KEYSET["invoke"]:
                 if self.invoke():
                     self.POINTS += 1
+                    self.hpbar.HP += 5
 
     def render_text(self):
         texts = {}
@@ -93,16 +152,26 @@ class Game:
     def draw(self):
         texts = self.render_text()
         self.DISPLAY.fill(self.COLORS["BG"])
+        sy = self.spell_y_offset
+        sx = self.SIZE[0] // 2 - self.SPELL_IMAGES["blast"].get_rect().width // 2
+
         self.DISPLAY.blit(
-            self.SPELL_IMAGES[self.spellqueue.get_first_spell().name], (100, 100)
+            self.SPELL_IMAGES[self.spellqueue.get_first_spell().name], (sx, sy)
         )
+        self.layout.draw(self)
+        self.hpbar.draw(self)
         pygame.display.flip()
+
+    def process(self):
+        self.hpbar.HP -= 0.1
+        self.hpbar.update_status()
 
     def main_loop(self):
         while self.running:
             events = pygame.event.get()
             for e in events:
                 self.process_event(e)
+            self.process()
             self.draw()
             self.CLOCK.tick(self.FPS)
             #print(self.layout)

@@ -57,8 +57,20 @@ class SpellInterface:
 
     spellnames = list(spell_to_combo.keys())
 
-    def get_random_spell(self):
-        r = random.choice(self.spellnames)
+    def exclude(self, spell_name):
+        res = []
+        for item in self.spellnames:
+            if item != spell_name:
+                res.append(item)
+        return res
+
+    def get_random_spell(self, prev=""):
+        """returns random spell.
+
+        :prev: string - name of previous generated spell
+        if set, makes sure spell won't repeat
+        """
+        r = random.choice(self.exclude(prev))
         return Spell(self.spell_to_combo[r], r, r + ".png")
 
     def init_spells_seq(self, N):
@@ -68,8 +80,11 @@ class SpellInterface:
         :N: number of spells in initial queue
         """
         seq = queue.Queue()
+        prev = self.get_random_spell()
+        seq.put(prev)
         for i in range(N):
-            rs = self.get_random_spell()
+            rs = self.get_random_spell(prev.name)
+            prev = rs
             seq.put(rs)
         return seq
 
@@ -81,10 +96,13 @@ class SpellQueue:
         self.queue = self.si.init_spells_seq(10)
 
     def add_spell(self):
-        self.queue.put(self.si.get_random_spell())
+        self.queue.put(self.si.get_random_spell(self.get_last_spell().name))
 
     def get_first_spell(self):
         return list(self.queue.queue)[0]
+
+    def get_last_spell(self):
+        return list(self.queue.queue)[-1]
 
     def remove_spell(self):
         return self.queue.get()
