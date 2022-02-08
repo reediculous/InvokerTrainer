@@ -99,6 +99,7 @@ class Game:
     ICONS_DIR = "static/images/spell_icons"
     SIZE = (500, 500)
     SPHERE_SIZE = (70, 70)
+    SPHERE_SIZE_MIN = (25, 25)
     SPELL_SIZE = (100, 100)
     SPELL_SIZE_SECONDARY = (75, 75)
 
@@ -106,8 +107,10 @@ class Game:
         "BG": (255, 255, 255),
         "TEXT": (0, 0, 0),
         "BORDER": (30, 30, 30),
-        "BORDER_SECONDARY": (80, 80, 80),
+        "COMBO": (255, 255, 255),
+        "BORDER_SECONDARY": (80, 80, 80, 128),
     }
+
     SPELL_IMAGES_RAW = {}
     for s in spells.SpellInterface.spellnames:
         SPELL_IMAGES_RAW[s] = pygame.image.load(ICONS_DIR + f"/{s}.png")
@@ -133,6 +136,12 @@ class Game:
         "E": pygame.transform.scale(SPHERE_IMAGES_RAW["E"], SPHERE_SIZE)
     }
 
+    SPHERE_IMAGES_MINIMUM = {
+        "Q": pygame.transform.scale(SPHERE_IMAGES_RAW["Q"], SPHERE_SIZE_MIN),
+        "W": pygame.transform.scale(SPHERE_IMAGES_RAW["W"], SPHERE_SIZE_MIN),
+        "E": pygame.transform.scale(SPHERE_IMAGES_RAW["E"], SPHERE_SIZE_MIN)
+    }
+
     POINTS = 0
     COMBO = 0
     max_combo = 0
@@ -144,6 +153,7 @@ class Game:
     DISPLAY = pygame.display.set_mode(SIZE)
     CLOCK = pygame.time.Clock()
     FONT = pygame.font.SysFont("Arial", 36)
+    COMBOFONT = pygame.font.SysFont("Arial", 20)
     layout = SphereLayout()
     spellqueue = spells.SpellQueue()
     hpbar = HPbar()
@@ -162,6 +172,9 @@ class Game:
     spheres_y_offset = 50
     spell_border_width = 10
     record_offset = hp_bar_y_offset + 50
+    spell_layout_offset_y = -25
+    spell_layout_offset_x = -20
+    combo_helper_between = 5
 
     running = True
 
@@ -239,6 +252,7 @@ class Game:
         texts = self.render_text()
         self.DISPLAY.fill(self.COLORS["BG"])
 
+        s = self.spellqueue.get_first_spell()
         sy = self.spell_y_offset
         sw = sh = self.SPELL_IMAGES["blast"].get_rect().width
         sx = self.SIZE[0] // 2 - sw // 2
@@ -249,8 +263,22 @@ class Game:
         pygame.draw.rect(self.DISPLAY, self.COLORS["BORDER"],
                          (sfx, sfy, sfw, sfh))
         self.DISPLAY.blit(
-            self.SPELL_IMAGES[self.spellqueue.get_first_spell().name], (sx, sy)
+            self.SPELL_IMAGES[s.name], (sx, sy)
         )
+
+        '''
+        combotext = self.COMBOFONT.render(str(s.combo), True, self.COLORS["COMBO"])
+        self.DISPLAY.blit(
+            combotext, (sx, sy)
+        )
+        '''
+
+        helper_x = sx + self.spell_layout_offset_x
+        helper_y = sy + self.spell_layout_offset_y
+        w = self.SPHERE_IMAGES_MINIMUM["Q"].get_rect().width
+        for char in str(s.combo):
+            self.DISPLAY.blit(self.SPHERE_IMAGES_MINIMUM[char], (helper_x, helper_y))
+            helper_x += self.combo_helper_between + w
 
         second_spell = self.spellqueue.get_k_spells(2)[1]
 

@@ -45,13 +45,13 @@ class SpellInterface:
     spell_to_combo = {
         "coldsnap": Combo("QQQ"),
         "icewall": Combo("QQE"),
-        "forgespirit": Combo("QEE"),
+        "forgespirit": Combo("EEQ"),
         "sunstrike": Combo("EEE"),
         "meteor": Combo("EEW"),
-        "alacrity": Combo("EWW"),
+        "alacrity": Combo("WWE"),
         "EMP": Combo("WWW"),
         "tornado": Combo("WWQ"),
-        "ghostwalk": Combo("WQQ"),
+        "ghostwalk": Combo("QQW"),
         "blast": Combo("QWE"),
     }
 
