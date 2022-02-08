@@ -101,6 +101,9 @@ class SpellQueue:
     def get_first_spell(self):
         return list(self.queue.queue)[0]
 
+    def get_k_spells(self, k):
+        return list(self.queue.queue)[:k:]
+
     def get_last_spell(self):
         return list(self.queue.queue)[-1]
 

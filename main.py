@@ -34,12 +34,14 @@ class SphereLayout:
         return self.counter == combo.counter
 
     def draw(self, game):
-        sw = game.SPHERE_IMAGES["Q"].get_rect().width
+        sw = game.SPHERE_IMAGES["Q"].get_rect().width  # TODO: move to init
+        sh = game.SPHERE_IMAGES["Q"].get_rect().height
         b = game.between_spheres_distance
-        offset = (game.SIZE[0] - sw * 3 - b * 2) // 2
+        offset = (game.SIZE[0] - sw * 5 - b * 2) // 2
         for sphere in self.layout:
             game.DISPLAY.blit(
-                game.SPHERE_IMAGES[sphere], (offset, 300)
+                game.SPHERE_IMAGES[sphere], (offset,
+                    game.SIZE[1] - game.spheres_y_offset - sh)
             )
             offset += b + sw
 
@@ -47,20 +49,13 @@ class SphereLayout:
 class HPbar:
     HP = 100
     _status = "FULL"  # may be FULL, OKAY, LOW, CRITICAL
-    _COLORS = {
-        "FULL": (11, 218, 81),
-        "OKAY": (204, 255, 0),
-        "LOW": (255, 153, 0),
-        "CRITICAL": (255, 0, 43),
-        "BG": (50, 50, 50)
-    }
     MAX_WIDTH = 450
     border = 4
     width = MAX_WIDTH - border * 2
     height = 40
 
     def is_dead(self):
-        return self.HP <= 0
+        return self.HP == 0
 
     def update_status(self):
         if self.HP > 90:
@@ -75,30 +70,77 @@ class HPbar:
     def calc_width(self):
         return (self.HP * self.MAX_WIDTH) // 100
 
+    def update_hp(self, new_val):
+        self.HP += new_val
+        if self.HP >= 100:
+            self.HP = 100
+        if self.HP < 0:
+            self.HP = 0
+
+    def get_color(self):
+        R = int(255 - self.HP * 2.55)
+        if R < 0:
+            R = 0
+        G = int(self.HP * 2.55)
+        if G < 0:
+            G = 0
+        return R, G, 0
+
     def draw(self, game):
         y = game.hp_bar_y_offset
         x = game.SIZE[0] // 2 - self.MAX_WIDTH // 2
-        pygame.draw.rect(game.DISPLAY, self._COLORS[self._status],
+        pygame.draw.rect(game.DISPLAY, self.get_color(),
                          (x, y, self.calc_width(), self.height))
 
 
 class Game:
+    regime = "menu"
+
     ICONS_DIR = "static/images/spell_icons"
     SIZE = (500, 500)
+    SPHERE_SIZE = (70, 70)
+    SPELL_SIZE = (100, 100)
+    SPELL_SIZE_SECONDARY = (75, 75)
+
     COLORS = {
         "BG": (255, 255, 255),
-        "TEXT": (0, 0, 0)
+        "TEXT": (0, 0, 0),
+        "BORDER": (30, 30, 30),
+        "BORDER_SECONDARY": (80, 80, 80),
     }
-    SPELL_IMAGES = {}
+    SPELL_IMAGES_RAW = {}
     for s in spells.SpellInterface.spellnames:
-        SPELL_IMAGES[s] = pygame.image.load(ICONS_DIR + f"/{s}.png")
-    SPHERE_IMAGES = {
+        SPELL_IMAGES_RAW[s] = pygame.image.load(ICONS_DIR + f"/{s}.png")
+
+    SPELL_IMAGES = {}
+    for s in SPELL_IMAGES_RAW:
+        SPELL_IMAGES[s] = pygame.transform.scale(SPELL_IMAGES_RAW[s], SPELL_SIZE)
+
+    SPELL_IMAGES_SECONDARY = {}
+    for s in SPELL_IMAGES_RAW:
+        SPELL_IMAGES_SECONDARY[s] = pygame.transform.scale(SPELL_IMAGES_RAW[s], SPELL_SIZE_SECONDARY)
+        SPELL_IMAGES_SECONDARY[s].set_alpha(128)
+
+    SPHERE_IMAGES_RAW = {
         "Q": pygame.image.load(ICONS_DIR + "/spheres/Q.png"),
         "W": pygame.image.load(ICONS_DIR + "/spheres/W.png"),
         "E":  pygame.image.load(ICONS_DIR + "/spheres/E.png")
     }
-    FPS = 60
+
+    SPHERE_IMAGES = {
+        "Q": pygame.transform.scale(SPHERE_IMAGES_RAW["Q"], SPHERE_SIZE),
+        "W": pygame.transform.scale(SPHERE_IMAGES_RAW["W"], SPHERE_SIZE),
+        "E": pygame.transform.scale(SPHERE_IMAGES_RAW["E"], SPHERE_SIZE)
+    }
+
     POINTS = 0
+    COMBO = 0
+    max_combo = 0
+    HPADD = 5
+    HPSUB_COMBOLOST = 20
+    HPSUB_TIME = 0.15
+
+    FPS = 60
     DISPLAY = pygame.display.set_mode(SIZE)
     CLOCK = pygame.time.Clock()
     FONT = pygame.font.SysFont("Arial", 36)
@@ -114,10 +156,37 @@ class Game:
     }
 
     between_spheres_distance = 25
-    spell_y_offset = 100
+    between_spells_distance = 20
+    spell_y_offset = 250
     hp_bar_y_offset = 20
+    spheres_y_offset = 50
+    spell_border_width = 10
+    record_offset = hp_bar_y_offset + 50
 
     running = True
+
+    STATS_FILE_PATH = "static/stats/pac.txt"
+    SETTINGS_FILE_PATH = "static/settings.txt"
+
+    def __init__(self):
+        self.functions_set = {
+            "menu": {
+                "events": self.process_events_main_menu,
+                "draw": self.draw_menu,
+            },
+            "game": {
+                "events": self.process_event,
+                "draw": self.draw,
+                "process": self.process,
+            }
+        }
+
+    def finish_game(self):
+        f = open(self.STATS_FILE_PATH, "a")
+        f.write(str(self.POINTS) + "\t")
+        f.write(str(self.max_combo) + "\n")
+        f.close()
+        self.regime = "menu"
 
     def invoke(self):
         if self.layout == self.spellqueue.get_first_spell().combo:
@@ -139,42 +208,96 @@ class Game:
             if event.key == self.KEYSET["invoke"]:
                 if self.invoke():
                     self.POINTS += 1
-                    self.hpbar.HP += 5
+                    self.hpbar.update_hp(self.HPADD)
+                    self.COMBO += 1
+                    if self.COMBO > self.max_combo:
+                        self.max_combo = self.COMBO
+                else:
+                    self.COMBO = 0
+                    self.hpbar.update_hp(-self.HPSUB_COMBOLOST)
+
+    def process_events_main_menu(self, event):
+        if event.type == pygame.QUIT:
+            self.running = False
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                self.hpbar.HP = 100
+                self.COMBO = 0
+                self.max_combo = 0
+                self.POINTS = 0
+                self.regime = "game"
 
     def render_text(self):
         texts = {}
         texts["POINTS"] = \
             self.FONT.render(str(self.POINTS), True, self.COLORS["TEXT"])
-        texts["CURRENT_SPELL"] = \
-            self.FONT.render(self.spellqueue.get_first_spell().name, True, self.COLORS["TEXT"])
+        texts["COMBO"] = \
+            self.FONT.render(str(self.COMBO), True, self.COLORS["TEXT"])
         return texts
 
     def draw(self):
         texts = self.render_text()
         self.DISPLAY.fill(self.COLORS["BG"])
-        sy = self.spell_y_offset
-        sx = self.SIZE[0] // 2 - self.SPELL_IMAGES["blast"].get_rect().width // 2
 
+        sy = self.spell_y_offset
+        sw = sh = self.SPELL_IMAGES["blast"].get_rect().width
+        sx = self.SIZE[0] // 2 - sw // 2
+        sfx = sx - self.spell_border_width
+        sfy = sy - self.spell_border_width
+        sfw = sw + 2 * self.spell_border_width
+        sfh = sfw
+        pygame.draw.rect(self.DISPLAY, self.COLORS["BORDER"],
+                         (sfx, sfy, sfw, sfh))
         self.DISPLAY.blit(
             self.SPELL_IMAGES[self.spellqueue.get_first_spell().name], (sx, sy)
         )
+
+        second_spell = self.spellqueue.get_k_spells(2)[1]
+
+        sw_second = self.SPELL_IMAGES_SECONDARY["blast"].get_rect().width
+        sy_second = sy - sh - self.between_spells_distance
+        sx_second = sx + (self.SPELL_SIZE[0] - self.SPELL_SIZE_SECONDARY[0]) // 2
+        sfx_second = sx_second - self.spell_border_width
+        sfy_second = sy_second - self.spell_border_width
+        sfw_second = sw_second + 2 * self.spell_border_width
+        sfh_second = sfw_second
+        pygame.draw.rect(self.DISPLAY, self.COLORS["BORDER_SECONDARY"],
+                         (sfx_second, sfy_second, sfw_second, sfh_second), self.spell_border_width)
+        self.DISPLAY.blit(
+            self.SPELL_IMAGES_SECONDARY[second_spell.name],
+            (sx_second, sy_second)
+        )
+
+        r = self.record_offset
+        self.DISPLAY.blit(texts["COMBO"], (r, r))
+        self.DISPLAY.blit(texts["POINTS"], (self.SIZE[0] - r, r))
+
         self.layout.draw(self)
         self.hpbar.draw(self)
         pygame.display.flip()
 
+    def draw_menu(self):
+        self.DISPLAY.fill(self.COLORS["BG"])
+        text = self.FONT.render("Нажмите SPACE для начала", True, self.COLORS["TEXT"])
+        self.DISPLAY.blit(text,
+                          (self.SIZE[0] // 2 - text.get_rect().width // 2, self.SIZE[1] // 2 - 18))
+        pygame.display.flip()
+
     def process(self):
-        self.hpbar.HP -= 0.1
+        self.hpbar.update_hp(-self.HPSUB_TIME)
         self.hpbar.update_status()
+        if self.hpbar.is_dead():
+            self.finish_game()
 
     def main_loop(self):
         while self.running:
             events = pygame.event.get()
             for e in events:
-                self.process_event(e)
-            self.process()
-            self.draw()
+                self.functions_set[self.regime]["events"](e)
+            if self.regime != "menu":
+                self.functions_set[self.regime]["process"]()
+            self.functions_set[self.regime]["draw"]()
             self.CLOCK.tick(self.FPS)
-            #print(self.layout)
 
 
 game = Game()
