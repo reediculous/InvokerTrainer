@@ -93,15 +93,49 @@ class HPbar:
                          (x, y, self.calc_width(), self.height))
 
 
-class Game:
-    regime = "menu"
+class GameRegime:
+    def __init__(self, game):
+        self.game = game
 
-    ICONS_DIR = "static/images/spell_icons"
+    def process_events(self, event):
+        if event.type == pygame.QUIT:
+            self.game.running = False
+
+    def process(self):
+        pass
+
+
+class Menu(GameRegime):
+    def __init__(self, game):
+        super().__init__(game)
+
+
+
+
+class Stats(GameRegime):
+    pass
+
+
+class GameProcess(GameRegime):
+    pass
+
+
+
+class Game:
+    """ firstly I thought I would have only one regime,
+    so I made only one game class
+    TODO: REPLACE WITH STRATEGY PATTERN!!!
+    """
+    regime = "menu"
+    STATIC_FILES_DIR = "static/"
+    SPELLS_ICONS_DIR = STATIC_FILES_DIR + "images/spell_icons"
+    MENU_ICONS_DIR = STATIC_FILES_DIR + "images/menu_icons"
     SIZE = (500, 500)
     SPHERE_SIZE = (70, 70)
     SPHERE_SIZE_MIN = (25, 25)
     SPELL_SIZE = (100, 100)
     SPELL_SIZE_SECONDARY = (75, 75)
+    MENU_ICON_SIZE = (80, 80)
 
     COLORS = {
         "BG": (255, 255, 255),
@@ -113,7 +147,7 @@ class Game:
 
     SPELL_IMAGES_RAW = {}
     for s in spells.SpellInterface.spellnames:
-        SPELL_IMAGES_RAW[s] = pygame.image.load(ICONS_DIR + f"/{s}.png")
+        SPELL_IMAGES_RAW[s] = pygame.image.load(SPELLS_ICONS_DIR + f"/{s}.png")
 
     SPELL_IMAGES = {}
     for s in SPELL_IMAGES_RAW:
@@ -125,9 +159,9 @@ class Game:
         SPELL_IMAGES_SECONDARY[s].set_alpha(128)
 
     SPHERE_IMAGES_RAW = {
-        "Q": pygame.image.load(ICONS_DIR + "/spheres/Q.png"),
-        "W": pygame.image.load(ICONS_DIR + "/spheres/W.png"),
-        "E":  pygame.image.load(ICONS_DIR + "/spheres/E.png")
+        "Q": pygame.image.load(SPELLS_ICONS_DIR + "/spheres/Q.png"),
+        "W": pygame.image.load(SPELLS_ICONS_DIR + "/spheres/W.png"),
+        "E":  pygame.image.load(SPELLS_ICONS_DIR + "/spheres/E.png")
     }
 
     SPHERE_IMAGES = {
@@ -142,8 +176,13 @@ class Game:
         "E": pygame.transform.scale(SPHERE_IMAGES_RAW["E"], SPHERE_SIZE_MIN)
     }
 
-    POINTS = 0
-    COMBO = 0
+    SETTINGS_ICON_RAW = pygame.image.load(MENU_ICONS_DIR + "/settingsicon.png")
+    STATS_ICON_RAW = pygame.image.load(MENU_ICONS_DIR + "/statsicon.png")
+    SETTINGS_ICON = pygame.transform.scale(SETTINGS_ICON_RAW, MENU_ICON_SIZE)
+    STATS_ICON = pygame.transform.scale(STATS_ICON_RAW, MENU_ICON_SIZE)
+
+    points = 0
+    combo = 0
     max_combo = 0
     HPADD = 5
     HPSUB_COMBOLOST = 20
@@ -175,6 +214,10 @@ class Game:
     spell_layout_offset_y = -25
     spell_layout_offset_x = -20
     combo_helper_between = 5
+    settings_icon_x = 30
+    settings_icon_y = 30
+    stats_icon_x = SIZE[0] - 30 - STATS_ICON.get_rect().width
+    stats_icon_y = 30
 
     running = True
 
@@ -191,12 +234,30 @@ class Game:
                 "events": self.process_event,
                 "draw": self.draw,
                 "process": self.process,
+            },
+            "stats": {
+                "events": self.process_events_stats,
+                "draw": self.draw_stats,
             }
         }
 
+    def calc_stats(self):
+        stats = open(self.STATS_FILE_PATH, "r")
+        combo_S = 0
+        points_S = 0
+        counter = 0
+        for line in stats.readlines():
+            line = line.split("\t")
+            combo_S += line[1]
+            points_S += line[0]
+            counter += 1
+        average_combo = combo_S / counter
+        average_points = points_S / counter
+        return average_points, average_combo
+
     def finish_game(self):
         f = open(self.STATS_FILE_PATH, "a")
-        f.write(str(self.POINTS) + "\t")
+        f.write(str(self.points) + "\t")
         f.write(str(self.max_combo) + "\n")
         f.close()
         self.regime = "menu"
@@ -220,13 +281,13 @@ class Game:
                 self.layout.add_sphere("E")
             if event.key == self.KEYSET["invoke"]:
                 if self.invoke():
-                    self.POINTS += 1
+                    self.points += 1
                     self.hpbar.update_hp(self.HPADD)
-                    self.COMBO += 1
-                    if self.COMBO > self.max_combo:
-                        self.max_combo = self.COMBO
+                    self.combo += 1
+                    if self.combo > self.max_combo:
+                        self.max_combo = self.combo
                 else:
-                    self.COMBO = 0
+                    self.combo = 0
                     self.hpbar.update_hp(-self.HPSUB_COMBOLOST)
 
     def process_events_main_menu(self, event):
@@ -235,17 +296,24 @@ class Game:
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
                 self.hpbar.HP = 100
-                self.COMBO = 0
+                self.combo = 0
                 self.max_combo = 0
-                self.POINTS = 0
+                self.points = 0
                 self.regime = "game"
+
+    def process_events_stats(self, event):
+        if event.type == pygame.QUIT:
+            self.running = False
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_BACKSPACE:
+                self.regime = "menu"
 
     def render_text(self):
         texts = {}
         texts["POINTS"] = \
-            self.FONT.render(str(self.POINTS), True, self.COLORS["TEXT"])
+            self.FONT.render(str(self.points), True, self.COLORS["TEXT"])
         texts["COMBO"] = \
-            self.FONT.render(str(self.COMBO), True, self.COLORS["TEXT"])
+            self.FONT.render(str(self.combo), True, self.COLORS["TEXT"])
         return texts
 
     def draw(self):
@@ -309,6 +377,20 @@ class Game:
         text = self.FONT.render("Нажмите SPACE для начала", True, self.COLORS["TEXT"])
         self.DISPLAY.blit(text,
                           (self.SIZE[0] // 2 - text.get_rect().width // 2, self.SIZE[1] // 2 - 18))
+        self.DISPLAY.blit(self.SETTINGS_ICON,
+                          (self.settings_icon_x, self.settings_icon_y))
+        self.DISPLAY.blit(self.STATS_ICON,
+                          (self.stats_icon_x, self.stats_icon_y))
+        pygame.display.flip()
+
+    def draw_stats(self):
+        self.DISPLAY.fill(self.COLORS["BG"])
+        ap, ac = self.calc_stats()
+        text = self.FONT.render(
+            "AVERAGE POINTS: " + str(ap) + "\nAVERAGE COMBO: " + str(ac),
+            True, self.COLORS["TEXT"]
+        )
+        self.DISPLAY.blit(text, (25, 25))  # TODO: make an offset var
         pygame.display.flip()
 
     def process(self):
